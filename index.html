@@ -714,15 +714,40 @@ body { display: flex; flex-direction: column; }
 <script>
 const tg = window.Telegram?.WebApp;
 
+// ─── ИНИЦИАЛИЗАЦИЯ TELEGRAM ───────────────────────────────
+if (tg) {
+  tg.ready();
+  tg.expand();
+}
+
 // ─── ЗАГРУЗКА ДАННЫХ ПОДПИСКИ С БОТА ─────────────────────
 const API_URL = 'https://bot-1793686795-1487-rattik.bothost.tech';
 
 async function loadUserData() {
   try {
     const userId = tg?.initDataUnsafe?.user?.id;
-    if (!userId) return;
+    if (!userId) {
+      console.warn("userId не найден в initDataUnsafe — открыто вне Telegram?");
+      return;
+    }
+
+    // Заполняем имя и username из initData
+    const user = tg.initDataUnsafe.user;
+    const firstName = user.first_name || '';
+    const lastName  = user.last_name  || '';
+    const username  = user.username   || '';
+    const fullName  = (firstName + ' ' + lastName).trim() || 'Пользователь';
+    const avatarLetter = firstName.charAt(0).toUpperCase() || 'П';
+
+    const nameEl   = document.getElementById('profile-name');
+    const userEl   = document.getElementById('profile-username');
+    const avatarEl = document.getElementById('avatar-letter');
+    if (nameEl)   nameEl.textContent   = fullName;
+    if (userEl)   userEl.textContent   = username ? '@' + username : '';
+    if (avatarEl) avatarEl.textContent = avatarLetter;
+
     const response = await fetch(`${API_URL}/user?user_id=${userId}`);
-    if (!response.ok) throw new Error('Ошибка сети');
+    if (!response.ok) throw new Error('HTTP ' + response.status);
     const data = await response.json();
     console.log("Данные подписки загружены:", data);
     hasSubscription = data.has_sub || false;

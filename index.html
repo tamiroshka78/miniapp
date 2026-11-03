@@ -859,20 +859,31 @@ document.getElementById('modal').addEventListener('click', function(e) {
 function confirmPurchase(planKey) {
   const plan = PLANS[planKey];
   closeModal();
-  // Отправляем данные боту через sendData
-  if (tg?.sendData) {
-    tg.sendData(JSON.stringify({ action: plan.planKey }));
-  } else {
-    // В браузере — имитация (для теста)
-    showToast(`Покупка: ${plan.label} за ⭐${plan.stars}`);
-    // Демо: активируем подписку
-    setTimeout(() => {
-      hasSubscription = true;
-      daysLeft = plan.days;
-      updateSubscriptionUI();
-      switchTab('chats');
-    }, 800);
+
+  const userId = tg?.initDataUnsafe?.user?.id;
+  if (!userId) {
+    showToast("Ошибка: не удалось определить ID пользователя");
+    return;
   }
+
+  // Показываем пользователю уведомление, что запрос отправлен
+  showToast("Создаем счёт на оплату...");
+
+  // Делаем запрос к твоему бэкенду на BotHost, чтобы бот прислал инвойс в чат
+  fetch(`${API_URL}/create_invoice?user_id=${userId}&plan=${planKey}`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        showToast("Счёт отправлен в чат с ботом! Перейдите в чат.");
+        if (tg?.close) tg.close(); // Закрываем мини-аппку, чтобы пользователь увидел инвойс в чате
+      } else {
+        showToast("Ошибка при создании счета");
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      showToast("Ошибка соединения с сервером");
+    });
 }
 
 // ─── TOAST ────────────────────────────────────────────────

@@ -536,6 +536,7 @@ body { display: flex; flex-direction: column; }
       <div class="profile-name" id="profile-name">Загрузка...</div>
       <div class="profile-username" id="profile-username"></div>
     </div>
+    <pre id="debug-panel" style="margin:8px 14px;padding:10px;background:#1a1a35;border-radius:12px;font-size:10px;color:#8b8baa;white-space:pre-wrap;word-break:break-all;border:1px solid #2a2a4a;"></pre>
 
     <div class="sub-card">
       <div class="sub-header">
@@ -751,7 +752,20 @@ body { display: flex; flex-direction: column; }
 
 <script>
 const tg = window.Telegram?.WebApp;
-if (tg) { tg.ready(); tg.expand(); }
+if (tg) {
+  tg.ready();
+  tg.expand();
+  // Отладка — показываем что пришло от Telegram
+  console.log('TG initDataUnsafe:', JSON.stringify(tg.initDataUnsafe));
+  console.log('TG initData:', tg.initData);
+  console.log('TG version:', tg.version);
+  // Показываем alert если user пустой
+  if (!tg.initDataUnsafe?.user) {
+    console.warn('USER IS EMPTY — initDataUnsafe.user не определён');
+  }
+} else {
+  console.warn('window.Telegram.WebApp не найден');
+}
 
 const API_URL = 'https://bot-1793686795-1487-rattik.bothost.tech';
 
@@ -773,8 +787,23 @@ let currentUserId = null;
 let chatsLoaded   = false;
 let trialUsed     = false;
 
+// ─── DEBUG ────────────────────────────────────────────────
+function showDebug() {
+  const info = {
+    hasTg: !!tg,
+    version: tg?.version,
+    platform: tg?.platform,
+    hasUser: !!tg?.initDataUnsafe?.user,
+    user: tg?.initDataUnsafe?.user || null,
+    initDataLen: tg?.initData?.length || 0,
+  };
+  const el = document.getElementById('debug-panel');
+  if (el) el.textContent = JSON.stringify(info, null, 2);
+}
+
 // ─── INIT ─────────────────────────────────────────────────
 async function init() {
+  showDebug();
   const user = tg?.initDataUnsafe?.user;
 
   if (user) {

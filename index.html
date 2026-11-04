@@ -90,8 +90,64 @@ body { display: flex; flex-direction: column; }
 .tab svg { width: 20px; height: 20px; margin-bottom: 3px; }
 
 /* PAGE */
-.page { display: none; }
+.page {
+  display: none;
+  animation: pageIn .25s cubic-bezier(.4,0,.2,1);
+}
 .page.active { display: block; }
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* SUB BANNER (вместо 1500+) */
+.sub-banner {
+  margin: 0 14px 12px;
+  background: linear-gradient(135deg, rgba(34,197,94,0.15), rgba(6,182,212,0.1));
+  border: 1px solid rgba(34,197,94,0.35);
+  border-radius: 18px;
+  padding: 14px 16px;
+  display: flex; align-items: center; gap: 12px;
+}
+.sub-banner-icon { font-size: 26px; flex-shrink: 0; }
+.sub-banner-text { flex: 1; }
+.sub-banner-title { font-size: 14px; font-weight: 700; color: var(--success); }
+.sub-banner-sub { font-size: 12px; color: var(--subtext); margin-top: 2px; line-height: 1.4; }
+
+/* STARS активная подписка */
+.stars-active-banner {
+  margin: 0 14px 16px;
+  background: linear-gradient(135deg, rgba(34,197,94,0.15), rgba(6,182,212,0.1));
+  border: 1px solid rgba(34,197,94,0.3);
+  border-radius: 18px;
+  padding: 16px;
+  display: flex; align-items: center; gap: 12px;
+}
+.stars-active-icon { font-size: 32px; }
+.stars-active-text { flex: 1; }
+.stars-active-title { font-size: 15px; font-weight: 700; color: var(--success); }
+.stars-active-sub { font-size: 12px; color: var(--subtext); margin-top: 3px; }
+.stars-renew-label { font-size: 12px; color: var(--subtext); margin: 0 14px 8px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; }
+
+/* Media in chat */
+.msg-media {
+  margin: 6px 0 4px;
+  border-radius: 10px;
+  overflow: hidden;
+  max-width: 220px;
+}
+.msg-media img, .msg-media video {
+  width: 100%; display: block; border-radius: 10px;
+}
+.msg-media-label {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 10px;
+  background: rgba(124,58,237,0.15);
+  border-radius: 10px;
+  font-size: 12px; color: var(--subtext);
+  border: 1px solid var(--border);
+}
+.msg-media-label span { font-size: 18px; }
 
 /* ══════════════════════════════════════
    PROFILE PAGE
@@ -537,7 +593,7 @@ body { display: flex; flex-direction: column; }
       <div class="profile-name" id="profile-name">Загрузка...</div>
       <div class="profile-username" id="profile-username"></div>
     </div>
-    <pre id="debug-panel" style="margin:8px 14px;padding:10px;background:#1a1a35;border-radius:12px;font-size:10px;color:#8b8baa;white-space:pre-wrap;word-break:break-all;border:1px solid #2a2a4a;"></pre>
+
 
     <div class="sub-card">
       <div class="sub-header">
@@ -553,7 +609,8 @@ body { display: flex; flex-direction: column; }
       </div>
     </div>
 
-    <div class="social-proof">
+    <!-- Без подписки: 1500+ -->
+    <div class="social-proof" id="social-proof-block">
       <div class="social-left">
         <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="var(--primary2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81 19.79 19.79 0 01.22 1.18 2 2 0 012.18 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
         <div>
@@ -562,6 +619,14 @@ body { display: flex; flex-direction: column; }
         </div>
       </div>
       <button class="social-join" onclick="switchTab('stars')">Присоединиться!</button>
+    </div>
+    <!-- С подпиской: благодарность -->
+    <div class="sub-banner" id="sub-banner-block" style="display:none">
+      <div class="sub-banner-icon">🏆</div>
+      <div class="sub-banner-text">
+        <div class="sub-banner-title">Подписка активна!</div>
+        <div class="sub-banner-sub" id="sub-banner-msg">Спасибо за поддержку LogiX — вы делаете его лучше!</div>
+      </div>
     </div>
 
     <div id="plans-block">
@@ -605,8 +670,16 @@ body { display: flex; flex-direction: column; }
       <div class="stars-heading">Оплата звёздами</div>
       <div class="stars-sub">Выбери тариф и оплати через Telegram Stars — безопасно и быстро</div>
     </div>
+    <!-- Баннер активной подписки -->
+    <div class="stars-active-banner" id="stars-active-banner" style="display:none">
+      <div class="stars-active-icon">✅</div>
+      <div class="stars-active-text">
+        <div class="stars-active-title">У вас уже есть подписка</div>
+        <div class="stars-active-sub" id="stars-active-sub">Осталось — дней</div>
+      </div>
+    </div>
     <div class="stars-plans">
-      <div class="stars-plans-label">Выбери тариф</div>
+      <div class="stars-plans-label" id="stars-plans-label">Выбери тариф</div>
       <div class="stars-plans-grid">
         <div class="stars-plan" id="plan-trial7" onclick="selectPlan('trial7')">
           <div class="stars-plan-price">⭐ 15 <span class="stars-plan-badge">Пробный</span></div>
@@ -753,20 +826,7 @@ body { display: flex; flex-direction: column; }
 
 <script>
 const tg = window.Telegram?.WebApp;
-if (tg) {
-  tg.ready();
-  tg.expand();
-  // Отладка — показываем что пришло от Telegram
-  console.log('TG initDataUnsafe:', JSON.stringify(tg.initDataUnsafe));
-  console.log('TG initData:', tg.initData);
-  console.log('TG version:', tg.version);
-  // Показываем alert если user пустой
-  if (!tg.initDataUnsafe?.user) {
-    console.warn('USER IS EMPTY — initDataUnsafe.user не определён');
-  }
-} else {
-  console.warn('window.Telegram.WebApp не найден');
-}
+if (tg) { tg.ready(); tg.expand(); }
 
 const API_URL = 'https://bot-1793686795-1487-rattik.bothost.tech';
 
@@ -788,23 +848,8 @@ let currentUserId = null;
 let chatsLoaded   = false;
 let trialUsed     = false;
 
-// ─── DEBUG ────────────────────────────────────────────────
-function showDebug() {
-  const info = {
-    hasTg: !!tg,
-    version: tg?.version,
-    platform: tg?.platform,
-    hasUser: !!tg?.initDataUnsafe?.user,
-    user: tg?.initDataUnsafe?.user || null,
-    initDataLen: tg?.initData?.length || 0,
-  };
-  const el = document.getElementById('debug-panel');
-  if (el) el.textContent = JSON.stringify(info, null, 2);
-}
-
 // ─── INIT ─────────────────────────────────────────────────
 async function init() {
-  showDebug();
   const user = tg?.initDataUnsafe?.user;
 
   if (user) {
@@ -872,13 +917,23 @@ async function fetchAvatar(userId) {
 
 // ─── SUBSCRIPTION UI ──────────────────────────────────────
 function updateSubscriptionUI() {
-  const dot      = document.getElementById('sub-dot');
-  const label    = document.getElementById('sub-status-label');
-  const expires  = document.getElementById('sub-status-expires');
-  const daysNum  = document.getElementById('sub-days-num');
-  const daysLbl  = document.getElementById('sub-days-label');
-  const plansBlock  = document.getElementById('plans-block');
-  const trialBlock  = document.querySelector('.trial-block');
+  const dot        = document.getElementById('sub-dot');
+  const label      = document.getElementById('sub-status-label');
+  const expires    = document.getElementById('sub-status-expires');
+  const daysNum    = document.getElementById('sub-days-num');
+  const daysLbl    = document.getElementById('sub-days-label');
+  const plansBlock = document.getElementById('plans-block');
+  const trialBlock = document.querySelector('.trial-block');
+
+  // Профиль — баннеры
+  const socialBlock    = document.getElementById('social-proof-block');
+  const subBannerBlock = document.getElementById('sub-banner-block');
+  const subBannerMsg   = document.getElementById('sub-banner-msg');
+
+  // Stars — баннер
+  const starsActiveBanner = document.getElementById('stars-active-banner');
+  const starsActiveSub    = document.getElementById('stars-active-sub');
+  const starsPlansLabel   = document.getElementById('stars-plans-label');
 
   if (hasSubscription) {
     dot.className       = 'sub-dot active';
@@ -887,6 +942,18 @@ function updateSubscriptionUI() {
     daysNum.textContent = daysLeft;
     daysLbl.textContent = `${pluralDays(daysLeft)} осталось`;
     if (plansBlock) plansBlock.style.display = 'none';
+
+    // Профиль: скрываем 1500+, показываем благодарность
+    if (socialBlock) socialBlock.style.display = 'none';
+    if (subBannerBlock) subBannerBlock.style.display = 'flex';
+    if (subBannerMsg) subBannerMsg.textContent =
+      `Осталось ${daysLeft} ${pluralDays(daysLeft)} — спасибо за огромный вклад в LogiX! 💜`;
+
+    // Stars: показываем баннер активной подписки
+    if (starsActiveBanner) starsActiveBanner.style.display = 'flex';
+    if (starsActiveSub) starsActiveSub.textContent =
+      `Осталось ${daysLeft} ${pluralDays(daysLeft)}. Можно продлить прямо сейчас.`;
+    if (starsPlansLabel) starsPlansLabel.textContent = 'Продлить подписку:';
   } else {
     dot.className       = 'sub-dot inactive';
     label.textContent   = 'Подписка не активна';
@@ -894,11 +961,18 @@ function updateSubscriptionUI() {
     daysNum.textContent = '0';
     daysLbl.textContent = 'Выберите срок подписки';
     if (plansBlock) plansBlock.style.display = 'block';
-    // Скрываем пробный тариф если уже использован
     if (trialBlock) trialBlock.style.display = trialUsed ? 'none' : 'flex';
+
+    // Профиль: показываем 1500+
+    if (socialBlock) socialBlock.style.display = 'flex';
+    if (subBannerBlock) subBannerBlock.style.display = 'none';
+
+    // Stars: скрываем баннер
+    if (starsActiveBanner) starsActiveBanner.style.display = 'none';
+    if (starsPlansLabel) starsPlansLabel.textContent = 'Выбери тариф';
   }
 
-  // Также скрываем пробный тариф на странице Stars
+  // Пробный тариф на Stars
   const starsTrial = document.getElementById('plan-trial7');
   if (starsTrial) starsTrial.style.display = trialUsed ? 'none' : '';
 }
@@ -995,10 +1069,38 @@ async function openChat(chatId, chatName) {
     msgContainer.innerHTML = msgs.map(m => {
       const badgeClass = m.event_type === 'edited' ? 'edited' : 'deleted';
       const badgeText  = m.event_type === 'edited' ? 'изменено' : 'удалено';
+
+      // Медиа-блок
+      let mediaHtml = '';
+      if (m.media_url) {
+        const mt = m.media_type || '';
+        if (mt.startsWith('image') || mt === 'photo') {
+          mediaHtml = `<div class="msg-media"><img src="${escHtml(m.media_url)}" loading="lazy" onerror="this.parentElement.style.display='none'"></div>`;
+        } else if (mt.startsWith('video') || mt === 'video_note') {
+          mediaHtml = `<div class="msg-media"><video src="${escHtml(m.media_url)}" controls playsinline style="max-height:200px"></video></div>`;
+        } else if (mt === 'voice') {
+          mediaHtml = `<div class="msg-media"><audio src="${escHtml(m.media_url)}" controls style="width:100%"></audio></div>`;
+        } else if (mt === 'sticker') {
+          mediaHtml = `<div class="msg-media"><img src="${escHtml(m.media_url)}" loading="lazy" style="max-width:120px" onerror="this.parentElement.style.display='none'"></div>`;
+        } else if (mt) {
+          const icons = {document:'📄', animation:'🎞️', audio:'🎵', video_note:'⭕'};
+          const icon = icons[mt] || '📎';
+          mediaHtml = `<div class="msg-media-label"><span>${icon}</span>${escHtml(mt)}</div>`;
+        }
+      } else if (m.media_type && !m.text) {
+        // Нет URL но есть тип — показываем иконку
+        const icons = {photo:'🖼️', video:'🎥', voice:'🎤', document:'📄', sticker:'🎭', animation:'🎞️', video_note:'⭕', audio:'🎵'};
+        const icon = icons[m.media_type] || '📎';
+        const labels = {photo:'Фото', video:'Видео', voice:'Голосовое', document:'Документ', sticker:'Стикер', animation:'GIF', video_note:'Видео-кружок', audio:'Аудио'};
+        const lbl = labels[m.media_type] || m.media_type;
+        mediaHtml = `<div class="msg-media-label"><span>${icon}</span>${lbl} (файл не сохранён)</div>`;
+      }
+
       return `
         <div class="msg-bubble">
           <div class="msg-sender">${escHtml(m.sender_name)}</div>
-          <div class="msg-text">${escHtml(m.text)}</div>
+          ${mediaHtml}
+          ${m.text ? `<div class="msg-text">${escHtml(m.text)}</div>` : ''}
           <div class="msg-footer">
             <span class="msg-time">${m.time}</span>
             <span class="msg-event-badge ${badgeClass}">${badgeText}</span>
@@ -1024,19 +1126,35 @@ function closeChat() {
 }
 
 // ─── TABS ─────────────────────────────────────────────────
+let chatsRefreshTimer = null;
+
 function switchTab(tab) {
-  // Если мы в чате — сначала закрыть чат
   if (currentTab === 'chats') closeChat();
+
+  // Останавливаем автообновление если уходим с чатов
+  if (currentTab === 'chats' && tab !== 'chats') {
+    clearInterval(chatsRefreshTimer);
+    chatsRefreshTimer = null;
+  }
 
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.getElementById('page-' + tab).classList.add('active');
+
+  const pageEl = document.getElementById('page-' + tab);
+  pageEl.classList.add('active');
   document.getElementById('tab-' + tab).classList.add('active');
   currentTab = tab;
 
-  if (tab === 'chats' && !chatsLoaded) loadChats();
-  else if (tab === 'chats' && chatsLoaded) {
-    // Обновить если нужно
+  if (tab === 'chats') {
+    loadChats();
+    // Автообновление каждые 5 секунд
+    clearInterval(chatsRefreshTimer);
+    chatsRefreshTimer = setInterval(() => {
+      if (currentTab === 'chats') {
+        chatsLoaded = false;
+        loadChats();
+      }
+    }, 5000);
   }
 }
 

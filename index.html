@@ -1126,35 +1126,19 @@ function closeChat() {
 }
 
 // ─── TABS ─────────────────────────────────────────────────
-let chatsRefreshTimer = null;
-
 function switchTab(tab) {
   if (currentTab === 'chats') closeChat();
-
-  // Останавливаем автообновление если уходим с чатов
-  if (currentTab === 'chats' && tab !== 'chats') {
-    clearInterval(chatsRefreshTimer);
-    chatsRefreshTimer = null;
-  }
 
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
 
-  const pageEl = document.getElementById('page-' + tab);
-  pageEl.classList.add('active');
+  document.getElementById('page-' + tab).classList.add('active');
   document.getElementById('tab-' + tab).classList.add('active');
   currentTab = tab;
 
   if (tab === 'chats') {
+    chatsLoaded = false;
     loadChats();
-    // Автообновление каждые 5 секунд
-    clearInterval(chatsRefreshTimer);
-    chatsRefreshTimer = setInterval(() => {
-      if (currentTab === 'chats') {
-        chatsLoaded = false;
-        loadChats();
-      }
-    }, 5000);
   }
 }
 

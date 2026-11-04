@@ -771,6 +771,7 @@ let hasSubscription = false;
 let daysLeft      = 0;
 let currentUserId = null;
 let chatsLoaded   = false;
+let trialUsed     = false;
 
 // ─── INIT ─────────────────────────────────────────────────
 async function init() {
@@ -804,6 +805,7 @@ async function init() {
         const data = await r.json();
         hasSubscription = data.has_sub || false;
         daysLeft = data.days_left || 0;
+        trialUsed = data.trial_used || false;
         updateSubscriptionUI();
       }
     } catch (e) {
@@ -819,10 +821,19 @@ async function fetchAvatar(userId) {
     const data = await r.json();
     if (data.photo_url) {
       const avatarEl = document.getElementById('avatar-letter');
-      const img = document.createElement('img');
+      const img = new Image();
+      img.onload = () => {
+        // Скрываем букву, показываем фото
+        avatarEl.style.fontSize = '0';
+        avatarEl.style.padding = '0';
+        // Убираем старое фото если было
+        const old = avatarEl.querySelector('img');
+        if (old) old.remove();
+        img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%;';
+        avatarEl.appendChild(img);
+      };
+      img.onerror = () => { /* буква останется */ };
       img.src = data.photo_url;
-      img.onerror = () => img.remove();
-      avatarEl.appendChild(img);
     }
   } catch (e) {
     // тихо — буква останется
@@ -831,12 +842,13 @@ async function fetchAvatar(userId) {
 
 // ─── SUBSCRIPTION UI ──────────────────────────────────────
 function updateSubscriptionUI() {
-  const dot     = document.getElementById('sub-dot');
-  const label   = document.getElementById('sub-status-label');
-  const expires = document.getElementById('sub-status-expires');
-  const daysNum = document.getElementById('sub-days-num');
-  const daysLbl = document.getElementById('sub-days-label');
-  const plansBlock = document.getElementById('plans-block');
+  const dot      = document.getElementById('sub-dot');
+  const label    = document.getElementById('sub-status-label');
+  const expires  = document.getElementById('sub-status-expires');
+  const daysNum  = document.getElementById('sub-days-num');
+  const daysLbl  = document.getElementById('sub-days-label');
+  const plansBlock  = document.getElementById('plans-block');
+  const trialBlock  = document.querySelector('.trial-block');
 
   if (hasSubscription) {
     dot.className       = 'sub-dot active';
@@ -852,7 +864,13 @@ function updateSubscriptionUI() {
     daysNum.textContent = '0';
     daysLbl.textContent = 'Выберите срок подписки';
     if (plansBlock) plansBlock.style.display = 'block';
+    // Скрываем пробный тариф если уже использован
+    if (trialBlock) trialBlock.style.display = trialUsed ? 'none' : 'flex';
   }
+
+  // Также скрываем пробный тариф на странице Stars
+  const starsTrial = document.getElementById('plan-trial7');
+  if (starsTrial) starsTrial.style.display = trialUsed ? 'none' : '';
 }
 
 // ─── CHATS LIST ───────────────────────────────────────────
@@ -1048,6 +1066,7 @@ async function confirmPurchase(planKey) {
           showToast('✅ Подписка активирована!');
           hasSubscription = true;
           daysLeft = plan.days;
+          if (planKey === 'trial7') trialUsed = true;
           updateSubscriptionUI();
           chatsLoaded = false; // обновить чаты после покупки
         } else if (status === 'cancelled') {

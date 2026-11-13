@@ -349,6 +349,33 @@ body { display: flex; flex-direction: column; }
 .chat-tag.deleted { background: rgba(239,68,68,.15); color: var(--danger); }
 .chat-tag.edited { background: rgba(124,58,237,.2); color: var(--primary2); }
 
+/* Выбор и удаление чатов */
+.chat-toolbar {
+  position: sticky; top: 0; z-index: 4;
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px; min-height: 48px;
+  background: rgba(10,10,26,0.95); backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+.chat-toolbar-title { flex: 1; font-size: 14px; font-weight: 600; color: var(--subtext); }
+.tb-btn {
+  background: var(--card2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 7px 12px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.tb-btn.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+.tb-btn:disabled { opacity: .4; }
+.chat-check {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid var(--border); flex-shrink: 0;
+  display: none; align-items: center; justify-content: center;
+  color: transparent; font-size: 13px; font-weight: 900;
+}
+.select-mode .chat-check { display: flex; }
+.chat-item.selected { background: rgba(124,58,237,.14); }
+.chat-item.selected .chat-check { background: var(--primary); border-color: var(--primary); color: #fff; }
+.chat-item { user-select: none; -webkit-user-select: none; }
+
 /* Chat screen (messages view) */
 .chat-screen {
   position: absolute; inset: 0;
@@ -817,6 +844,13 @@ body { display: flex; flex-direction: column; }
     <div class="chats-wrapper" id="chats-wrapper" style="display:none">
       <!-- Список чатов -->
       <div class="chat-list-screen" id="chat-list-screen">
+        <div class="chat-toolbar" id="chat-toolbar">
+          <div class="chat-toolbar-title" id="chat-toolbar-title">Чаты</div>
+          <button class="tb-btn" id="tb-select" onclick="enterSelectMode()">Выбрать</button>
+          <button class="tb-btn" id="tb-all" onclick="toggleSelectAll()" style="display:none">Все</button>
+          <button class="tb-btn danger" id="tb-delete" onclick="deleteSelectedChats()" style="display:none" disabled>Удалить</button>
+          <button class="tb-btn" id="tb-cancel" onclick="exitSelectMode()" style="display:none">Отмена</button>
+        </div>
         <div id="chat-list-items"></div>
         <div id="chats-empty" class="empty-chats" style="display:none">
           <div class="empty-icon">💬</div>
@@ -1091,6 +1125,126 @@ function updateSubscriptionUI() {
 }
 
 // ─── CHATS LIST ───────────────────────────────────────────
+let chatsData = [];
+let selectMode = false;
+const selectedChats = new Set();
+let pressTimer = null, longPressed = false;
+
+function renderChatList() {
+  const listEl = document.getElementById('chat-list-items');
+  listEl.classList.toggle('select-mode', selectMode);
+  listEl.innerHTML = chatsData.map(chat => {
+    const letter = (chat.name || '?').charAt(0).toUpperCase();
+    const color  = CHAT_COLORS[Math.abs(chat.chat_id || 0) % CHAT_COLORS.length];
+    const hasTag = chat.tag === 'deleted' || chat.tag === 'edited';
+    const tagClass = chat.tag === 'deleted' ? 'deleted' : 'edited';
+    const tagText  = chat.tag === 'deleted' ? 'удалено' : 'изменено';
+    const sel = selectedChats.has(chat.chat_id);
+    return `
+      <div class="chat-item${sel ? ' selected' : ''}" data-id="${chat.chat_id}">
+        <div class="chat-check">✓</div>
+        <div class="chat-avatar" style="background:${color}">${escHtml(letter)}</div>
+        <div class="chat-info">
+          <div class="chat-name">${escHtml(chat.name)}</div>
+          <div class="chat-msg">${escHtml(chat.last_msg || '')}</div>
+        </div>
+        <div class="chat-meta">
+          <div class="chat-time">${escHtml(chat.time || '')}</div>
+          ${hasTag ? `<div class="chat-tag ${tagClass}">${tagText}</div>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+  updateToolbar();
+}
+
+function updateToolbar() {
+  const n = selectedChats.size;
+  document.getElementById('chat-toolbar-title').textContent = selectMode
+    ? (n ? `Выбрано: ${n}` : 'Выберите чаты') : 'Чаты';
+  document.getElementById('tb-select').style.display = selectMode || !chatsData.length ? 'none' : '';
+  document.getElementById('tb-all').style.display    = selectMode ? '' : 'none';
+  document.getElementById('tb-all').textContent      = (n === chatsData.length && n > 0) ? 'Снять' : 'Все';
+  document.getElementById('tb-cancel').style.display = selectMode ? '' : 'none';
+  const del = document.getElementById('tb-delete');
+  del.style.display = selectMode ? '' : 'none';
+  del.disabled = n === 0;
+  del.textContent = n ? `Удалить (${n})` : 'Удалить';
+}
+
+function enterSelectMode(firstId) {
+  selectMode = true;
+  if (firstId !== undefined) selectedChats.add(firstId);
+  renderChatList();
+}
+
+function exitSelectMode(silent) {
+  selectMode = false;
+  selectedChats.clear();
+  if (!silent) renderChatList();
+}
+
+function toggleChatSelected(id) {
+  if (selectedChats.has(id)) selectedChats.delete(id); else selectedChats.add(id);
+  renderChatList();
+}
+
+function toggleSelectAll() {
+  if (selectedChats.size === chatsData.length) selectedChats.clear();
+  else chatsData.forEach(c => selectedChats.add(c.chat_id));
+  renderChatList();
+}
+
+async function deleteSelectedChats() {
+  const ids = [...selectedChats];
+  if (!ids.length) return;
+  if (!tg?.initData) { showToast('Откройте приложение из Telegram'); return; }
+  const text = `Убрать из списка чатов: ${ids.length}? Они появятся снова, если в них будут новые удалённые или изменённые сообщения.`;
+  const ok = tg?.showConfirm
+    ? await new Promise(res => tg.showConfirm(text, res))
+    : confirm(text);
+  if (!ok) return;
+  try {
+    const r = await fetch(`${API_URL}/chats/hide`, {
+      method: 'POST', headers: modeHeaders(),
+      body: JSON.stringify({ chat_ids: ids })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    chatsData = chatsData.filter(c => !selectedChats.has(c.chat_id));
+    exitSelectMode(true);
+    renderChatList();
+    if (!chatsData.length) document.getElementById('chats-empty').style.display = 'flex';
+    showToast('Чаты убраны из списка');
+  } catch (e) {
+    console.error('Ошибка удаления чатов:', e);
+    showToast('Не удалось удалить, попробуйте снова');
+  }
+}
+
+// Нажатие: обычный тап открывает чат (или отмечает в режиме выбора), долгое — включает выбор
+(function initChatListGestures() {
+  const list = document.getElementById('chat-list-items');
+  const idOf = e => { const el = e.target.closest('.chat-item'); return el ? Number(el.dataset.id) : null; };
+  const cancel = () => { clearTimeout(pressTimer); pressTimer = null; };
+  list.addEventListener('pointerdown', e => {
+    const id = idOf(e); if (id === null) return;
+    longPressed = false;
+    pressTimer = setTimeout(() => {
+      longPressed = true;
+      if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+      if (!selectMode) enterSelectMode(id); else toggleChatSelected(id);
+    }, 450);
+  });
+  ['pointerup', 'pointerleave', 'pointercancel', 'pointermove'].forEach(ev => list.addEventListener(ev, cancel));
+  list.addEventListener('contextmenu', e => { if (e.target.closest('.chat-item')) e.preventDefault(); });
+  list.addEventListener('click', e => {
+    const id = idOf(e); if (id === null) return;
+    if (longPressed) { longPressed = false; return; }
+    if (selectMode) { toggleChatSelected(id); return; }
+    const chat = chatsData.find(c => c.chat_id === id);
+    if (chat) openChat(chat.chat_id, chat.name);
+  });
+})();
+
 async function loadChats() {
   if (!hasSubscription) {
     document.getElementById('chats-no-sub').style.display = 'block';
@@ -1108,6 +1262,8 @@ async function loadChats() {
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const data = await r.json();
     const chats = data.chats || [];
+    chatsData = chats;
+    exitSelectMode(true);
 
     document.getElementById('chats-loading').style.display = 'none';
     document.getElementById('chats-wrapper').style.display = 'block';
@@ -1118,30 +1274,12 @@ async function loadChats() {
     if (chats.length === 0) {
       listEl.innerHTML = '';
       emptyEl.style.display = 'flex';
+      document.getElementById('tb-select').style.display = 'none';
       return;
     }
 
     emptyEl.style.display = 'none';
-    listEl.innerHTML = chats.map(chat => {
-      const letter = (chat.name || '?').charAt(0).toUpperCase();
-      const color  = CHAT_COLORS[Math.abs(chat.chat_id || 0) % CHAT_COLORS.length];
-      const tagClass = chat.tag === 'deleted' ? 'deleted' : 'edited';
-      const tagText  = chat.tag === 'deleted' ? 'удалено' : 'изменено';
-      const nameEsc  = escHtml(chat.name);
-      const msgEsc   = escHtml(chat.last_msg || '');
-      return `
-        <div class="chat-item" onclick="openChat(${chat.chat_id}, '${nameEsc.replace(/'/g,"\\'")}')">
-          <div class="chat-avatar" style="background:${color}">${letter}</div>
-          <div class="chat-info">
-            <div class="chat-name">${nameEsc}</div>
-            <div class="chat-msg">${msgEsc}</div>
-          </div>
-          <div class="chat-meta">
-            <div class="chat-time">${chat.time || ''}</div>
-            <div class="chat-tag ${tagClass}">${tagText}</div>
-          </div>
-        </div>`;
-    }).join('');
+    renderChatList();
 
     chatsLoaded = true;
   } catch (e) {
@@ -1291,7 +1429,7 @@ async function exportChat(fmt) {
 
 // ─── TABS ─────────────────────────────────────────────────
 function switchTab(tab) {
-  if (currentTab === 'chats') closeChat();
+  if (currentTab === 'chats') { closeChat(); exitSelectMode(); }
 
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));

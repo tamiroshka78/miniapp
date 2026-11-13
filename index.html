@@ -352,7 +352,7 @@ body { display: flex; flex-direction: column; }
 /* Выбор и удаление чатов */
 .chat-toolbar {
   position: sticky; top: 0; z-index: 4;
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px;
   padding: 10px 16px; min-height: 48px;
   background: rgba(10,10,26,0.95); backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
@@ -365,6 +365,7 @@ body { display: flex; flex-direction: column; }
 }
 .tb-btn.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
 .tb-btn:disabled { opacity: .4; }
+.chat-name.blocked, .chat-screen-name.blocked { color: var(--danger); }
 .chat-check {
   width: 22px; height: 22px; border-radius: 50%;
   border: 2px solid var(--border); flex-shrink: 0;
@@ -848,6 +849,7 @@ body { display: flex; flex-direction: column; }
           <div class="chat-toolbar-title" id="chat-toolbar-title">Чаты</div>
           <button class="tb-btn" id="tb-select" onclick="enterSelectMode()">Выбрать</button>
           <button class="tb-btn" id="tb-all" onclick="toggleSelectAll()" style="display:none">Все</button>
+          <button class="tb-btn" id="tb-block" onclick="blockSelectedChats()" style="display:none" disabled>Блок</button>
           <button class="tb-btn danger" id="tb-delete" onclick="deleteSelectedChats()" style="display:none" disabled>Удалить</button>
           <button class="tb-btn" id="tb-cancel" onclick="exitSelectMode()" style="display:none">Отмена</button>
         </div>
@@ -1145,7 +1147,7 @@ function renderChatList() {
         <div class="chat-check">✓</div>
         <div class="chat-avatar" style="background:${color}">${escHtml(letter)}</div>
         <div class="chat-info">
-          <div class="chat-name">${escHtml(chat.name)}</div>
+          <div class="chat-name${chat.blocked ? ' blocked' : ''}">${chat.muted ? '🔇 ' : ''}${escHtml(chat.name)}</div>
           <div class="chat-msg">${escHtml(chat.last_msg || '')}</div>
         </div>
         <div class="chat-meta">
@@ -1165,6 +1167,11 @@ function updateToolbar() {
   document.getElementById('tb-all').style.display    = selectMode ? '' : 'none';
   document.getElementById('tb-all').textContent      = (n === chatsData.length && n > 0) ? 'Снять' : 'Все';
   document.getElementById('tb-cancel').style.display = selectMode ? '' : 'none';
+  const blk = document.getElementById('tb-block');
+  blk.style.display = selectMode ? '' : 'none';
+  blk.disabled = n === 0;
+  const allBlocked = n > 0 && chatsData.filter(c => selectedChats.has(c.chat_id)).every(c => c.blocked);
+  blk.textContent = allBlocked ? 'Снять блок' : 'Блок';
   const del = document.getElementById('tb-delete');
   del.style.display = selectMode ? '' : 'none';
   del.disabled = n === 0;
@@ -1192,6 +1199,29 @@ function toggleSelectAll() {
   if (selectedChats.size === chatsData.length) selectedChats.clear();
   else chatsData.forEach(c => selectedChats.add(c.chat_id));
   renderChatList();
+}
+
+// Ручная отметка «заблокирован в Telegram»: Bot API не сообщает боту о блокировках, поэтому помечаем сами
+async function blockSelectedChats() {
+  const ids = [...selectedChats];
+  if (!ids.length) return;
+  if (!tg?.initData) { showToast('Откройте приложение из Telegram'); return; }
+  const picked = chatsData.filter(c => selectedChats.has(c.chat_id));
+  const blocked = !picked.every(c => c.blocked);
+  try {
+    const r = await fetch(`${API_URL}/chats/block`, {
+      method: 'POST', headers: modeHeaders(),
+      body: JSON.stringify({ chat_ids: ids, blocked })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    picked.forEach(c => { c.blocked = blocked; });
+    exitSelectMode(true);
+    renderChatList();
+    showToast(blocked ? 'Отмечено как заблокированные' : 'Отметка снята');
+  } catch (e) {
+    console.error('Ошибка отметки блокировки:', e);
+    showToast('Не удалось сохранить, попробуйте снова');
+  }
 }
 
 async function deleteSelectedChats() {
@@ -1296,7 +1326,10 @@ let currentChatName = '';
 async function openChat(chatId, chatName) {
   currentChatId = chatId;
   currentChatName = chatName;
-  document.getElementById('chat-screen-name').textContent = chatName;
+  const meta = chatsData.find(c => c.chat_id === chatId) || {};
+  const nameEl = document.getElementById('chat-screen-name');
+  nameEl.textContent = (meta.muted ? '🔇 ' : '') + chatName;
+  nameEl.classList.toggle('blocked', !!meta.blocked);
   document.getElementById('chat-screen-sub').textContent  = 'удалённые и изменённые сообщения';
 
   const msgContainer = document.getElementById('chat-messages');

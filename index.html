@@ -690,6 +690,22 @@ body { display: flex; flex-direction: column; }
 .st-grid { margin: 8px 14px; background: var(--card); border: 1px solid var(--border); border-radius: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 1px; overflow: hidden; }
 .st-item { background: var(--card); padding: 14px 16px; }
 .st-num { font-size: 22px; font-weight: 800; } .st-lbl { font-size: 12px; color: var(--subtext); margin-top: 2px; }
+/* SEABATTLE */
+.sb { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); width: min(94vw, 440px); margin: 8px auto; border: 2px solid var(--border); border-radius: 10px; overflow: hidden; background: #12304f; }
+.sb.small { width: min(62vw, 280px); }
+.sc { position: relative; min-width: 0; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 0 .5px rgba(120,170,230,.28); font-size: 14px; font-weight: 800; color: #ff6b6b; overflow: hidden; }
+.sc.ship { background: #7f93bd; }
+.sc.sunk { background: #5a2a38; box-shadow: inset 0 0 0 2px #ef4444; }
+.sc.hit { background: #7a2a2a; }
+.sc.tap { cursor: pointer; }
+.sc .dot { width: 22%; height: 22%; border-radius: 50%; background: rgba(200,225,255,.85); display: block; }
+.sb-lbl { margin: 10px 18px 0; font-size: 12px; color: var(--subtext); text-transform: uppercase; letter-spacing: .5px; }
+.sb-pal { display: flex; gap: 6px; margin: 10px 14px 0; justify-content: center; flex-wrap: wrap; }
+.sb-pb { padding: 7px 10px; border-radius: 12px; border: 1px solid var(--border); background: var(--card2); color: var(--text); font-size: 12px; font-weight: 700; cursor: pointer; }
+.sb-pb.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
+.sb-pb.off { opacity: .35; }
+.sb-act { display: flex; gap: 8px; margin: 0 14px; }
+.sb-act .g-btn { margin-top: 10px; padding: 11px 0; font-size: 13px; }
 </style>
 </head>
 <body>
@@ -951,12 +967,7 @@ body { display: flex; flex-direction: column; }
   <div class="page" id="page-stats">
     <div class="st-title">Статистика бота</div>
     <div id="stats-bot"><div class="g-card"><div class="g-sub">Загрузка...</div></div></div>
-    <div class="st-title">Игры</div>
-    <div class="st-grid">
-      <div class="st-item"><div class="st-num" id="gs-played">0</div><div class="st-lbl">Сыграно игр</div></div>
-      <div class="st-item"><div class="st-num" id="gs-wins" style="color:var(--success)">0</div><div class="st-lbl">Побед</div></div>
-      <div class="st-item" style="grid-column:span 2"><div class="st-num" id="gs-losses" style="color:var(--danger)">0</div><div class="st-lbl">Поражений</div></div>
-    </div>
+    <div id="stats-games"></div>
   </div>
 
 </div><!-- /content -->
@@ -1709,13 +1720,13 @@ function gSet(view) {
 }
 
 function gStartPoll() {
-  if (gPoll || !G || !['invite', 'active'].includes(G.status)) return;
+  if (gPoll || !G || !['invite', 'placing', 'active'].includes(G.status)) return;
   gPoll = setInterval(async () => {
     if (currentTab !== 'game' || !G) return;
     try {
       const v = await gApi('/game/state?game_id=' + encodeURIComponent(G.game_id));
       gSet(v);
-      if (!['invite', 'active'].includes(v.status)) { clearInterval(gPoll); gPoll = null; }
+      if (!['invite', 'placing', 'active'].includes(v.status)) { clearInterval(gPoll); gPoll = null; }
     } catch (e) {}
   }, 1500);
 }
@@ -1741,7 +1752,10 @@ function gIdle() {
   G = null; gStop();
   document.getElementById('game-root').innerHTML =
     `<div class="g-card"><div class="g-clock">♟️</div><div class="g-title">Шашки</div>
-     <div class="g-sub">Отправьте команду <b>.ches</b> в чате с человеком — ему придёт приглашение,
+     <div class="g-sub">Отправьте в чате с человеком команду <b>.ches</b> — ему придёт приглашение,
+     а здесь откроется игра.</div></div>
+     <div class="g-card"><div class="g-clock">🚢</div><div class="g-title">Морской бой</div>
+     <div class="g-sub">Отправьте в чате с человеком команду <b>.sewar</b> — ему придёт приглашение,
      а здесь откроется игра.</div></div>`;
 }
 
@@ -1757,7 +1771,7 @@ function gRender() {
         <button class="g-btn red" onclick="gCancel()">Отменить приглашение❌</button></div>`;
       gClock = setInterval(() => { const el = document.getElementById('g-clock'); if (el) el.textContent = CLOCKS[++gClockI % CLOCKS.length]; }, 600);
     } else {
-      root.innerHTML = `<div class="g-card"><div class="g-clock">🎮</div><div class="g-title">Приглашение в Шашки</div>
+      root.innerHTML = `<div class="g-card"><div class="g-clock">🎮</div><div class="g-title">Приглашение в ${gTitle()}</div>
         <div class="g-sub">От: ${opp}</div><button class="g-btn" onclick="gJoin()">Принять</button></div>`;
     }
     return;
@@ -1767,6 +1781,7 @@ function gRender() {
       <button class="g-btn ghost" onclick="gIdle()">Закрыть ❌</button></div>`;
     return;
   }
+  if (G.game_type === 'seabattle' && ['placing', 'active', 'finished'].includes(G.status)) return sbRender(root);
   let head = '';
   if (G.status === 'finished') {
     const win = G.winner === 'you';
@@ -1834,14 +1849,147 @@ async function gRematch() {
   catch (e) { showToast(e.message); }
 }
 
+
+// ─── МОРСКОЙ БОЙ ──────────────────────────────────────────
+const GAME_TITLES = { checkers: 'Шашки', seabattle: 'Морской бой' };
+const gTitle = () => GAME_TITLES[G?.game_type || 'checkers'];
+const SB_NEED = { 4: 1, 3: 2, 2: 3, 1: 4 };
+let SB = { gid: null, ships: [], horiz: true, sel: 4 };
+
+function sbFits(cells, ships) {
+  for (const [r, c] of cells) {
+    if (r < 0 || r > 9 || c < 0 || c > 9) return false;
+    for (const sh of ships) for (const [a, b] of sh) if (Math.abs(a - r) <= 1 && Math.abs(b - c) <= 1) return false;
+  }
+  return true;
+}
+function sbLeft(sz) { return SB_NEED[sz] - SB.ships.filter(s => s.length === sz).length; }
+function sbPickSel() { if (SB.sel && sbLeft(SB.sel) > 0) return; SB.sel = [4, 3, 2, 1].find(s => sbLeft(s) > 0) || null; }
+function sbRandomFleet() {
+  for (let a = 0; a < 500; a++) {
+    const ships = []; let ok = true;
+    for (const sz of [4, 3, 3, 2, 2, 2, 1, 1, 1, 1]) {
+      let placed = false;
+      for (let t = 0; t < 300 && !placed; t++) {
+        const h = Math.random() < .5, r = Math.floor(Math.random() * 10), c = Math.floor(Math.random() * 10);
+        const cells = Array.from({ length: sz }, (_, i) => h ? [r, c + i] : [r + i, c]);
+        if (sbFits(cells, ships)) { ships.push(cells); placed = true; }
+      }
+      if (!placed) { ok = false; break; }
+    }
+    if (ok) return ships;
+  }
+  return [];
+}
+
+function sbRender(root) {
+  const opp = escHtml(G.opp_label);
+  if (G.status === 'placing') {
+    if (G.ready_you) {
+      root.innerHTML = `<div class="g-card"><div class="g-clock" id="g-clock">${CLOCKS[0]}</div>
+        <div class="g-title">Соперник расставляет корабли</div><div class="g-sub">${opp}</div>
+        <button class="g-btn ghost" onclick="gResign()">Сдаться</button></div>`;
+      gClock = setInterval(() => { const el = document.getElementById('g-clock'); if (el) el.textContent = CLOCKS[++gClockI % CLOCKS.length]; }, 600);
+      return;
+    }
+    if (SB.gid !== G.game_id) SB = { gid: G.game_id, ships: [], horiz: true, sel: 4 };
+    root.innerHTML = `<div class="g-bar"><span>⚓ ${opp}</span><span class="g-turn">Расстановка кораблей</span></div>
+      <div class="sb-pal" id="sb-pal"></div><div class="sb" id="sb-place"></div>
+      <div class="sb-act"><button class="g-btn ghost" id="sb-rot" onclick="sbRotate()"></button>
+      <button class="g-btn ghost" onclick="sbRandom()">🎲 Случайно</button>
+      <button class="g-btn ghost" onclick="sbClear()">Очистить</button></div>
+      <div style="padding:0 14px 14px"><button class="g-btn" id="sb-ready" onclick="sbReady()">Готов ✅</button>
+      <button class="g-btn ghost" onclick="gResign()">Сдаться</button></div>`;
+    return sbDrawPlace();
+  }
+  let head;
+  if (G.status === 'finished') {
+    const win = G.winner === 'you';
+    head = `<div class="g-card"><div class="g-title">${win ? `Поздравляем, вы выиграли у пользователя ${opp} в игру «Морской бой»🥳` : `Вы проиграли пользователю ${opp} в игру «Морской бой»😞`}</div>
+      <button class="g-btn" onclick="gRematch()">${win ? 'Предложить сыграть снова' : 'Предложить реванш😏'}</button>
+      <button class="g-btn ghost" onclick="gIdle()">Закрыть ❌</button></div>`;
+  } else {
+    const mine = G.turn === G.you;
+    head = `<div class="g-bar"><span>⚓ ${opp}</span><span class="g-turn ${mine ? 'me' : ''}">${mine ? 'Ваш ход' : 'Ход соперника'}</span></div>`;
+  }
+  root.innerHTML = head + `<div class="sb-lbl">Поле соперника</div><div class="sb" id="sb-enemy"></div>
+    <div class="sb-lbl">Ваше поле</div><div class="sb small" id="sb-mine"></div>` +
+    (G.status === 'active' ? `<div style="padding:0 14px 14px"><button class="g-btn ghost" onclick="gResign()">Сдаться</button></div>` : '');
+  sbDrawBattle();
+}
+
+function sbDrawPlace() {
+  sbPickSel();
+  const occ = new Map();
+  SB.ships.forEach((sh, i) => sh.forEach(([r, c]) => occ.set(r + ',' + c, i)));
+  let h = '';
+  for (let r = 0; r < 10; r++) for (let c = 0; c < 10; c++)
+    h += `<div class="sc tap ${occ.has(r + ',' + c) ? 'ship' : ''}" onclick="sbTapPlace(${r},${c})"></div>`;
+  document.getElementById('sb-place').innerHTML = h;
+  document.getElementById('sb-pal').innerHTML = [4, 3, 2, 1].map(sz =>
+    `<button class="sb-pb ${SB.sel === sz ? 'on' : ''} ${sbLeft(sz) ? '' : 'off'}" onclick="sbSel(${sz})">${'▮'.repeat(sz)} ×${sbLeft(sz)}</button>`).join('');
+  document.getElementById('sb-rot').textContent = SB.horiz ? '↔ Горизонтально' : '↕ Вертикально';
+  document.getElementById('sb-ready').style.opacity = SB.ships.length === 10 ? 1 : .45;
+}
+function sbSel(sz) { if (sbLeft(sz) > 0) { SB.sel = sz; sbDrawPlace(); } }
+function sbRotate() { SB.horiz = !SB.horiz; sbDrawPlace(); }
+function sbClear() { SB.ships = []; SB.sel = 4; sbDrawPlace(); }
+function sbRandom() { SB.ships = sbRandomFleet(); sbDrawPlace(); }
+function sbTapPlace(r, c) {
+  const idx = SB.ships.findIndex(sh => sh.some(p => p[0] === r && p[1] === c));
+  if (idx >= 0) { SB.ships.splice(idx, 1); SB.sel = null; return sbDrawPlace(); }
+  if (!SB.sel) return showToast('Все корабли уже расставлены');
+  const cells = Array.from({ length: SB.sel }, (_, i) => SB.horiz ? [r, c + i] : [r + i, c]);
+  if (!sbFits(cells, SB.ships)) { try { tg?.HapticFeedback?.notificationOccurred('error'); } catch (e) {} return showToast('Сюда нельзя: корабли не должны касаться'); }
+  SB.ships.push(cells);
+  sbDrawPlace();
+}
+async function sbReady() {
+  if (SB.ships.length !== 10) return showToast('Расставьте все 10 кораблей');
+  try { gSet(await gApi('/game/place', 'POST', { game_id: G.game_id, ships: SB.ships })); } catch (e) { showToast(e.message); }
+}
+
+function sbDrawBattle() {
+  const mineTurn = G.status === 'active' && G.turn === G.you;
+  const shot = new Map(G.shots.map(s => [s[0] + ',' + s[1], s[2]]));
+  const sunk = new Set(G.sunk.flat().map(p => p.join()));
+  const reveal = new Set((G.opp_ships || []).flat().map(p => p.join()));
+  let h = '';
+  for (let r = 0; r < 10; r++) for (let c = 0; c < 10; c++) {
+    const k = r + ',' + c, s = shot.get(k), cls = ['sc'];
+    if (sunk.has(k)) cls.push('sunk'); else if (s === 'h') cls.push('hit');
+    else if (!s && reveal.has(k)) cls.push('ship');
+    if (!s && mineTurn) cls.push('tap');
+    h += `<div class="${cls.join(' ')}" ${!s && mineTurn ? `onclick="sbShoot(${r},${c})"` : ''}>${s === 'h' ? '✕' : s === 'm' ? '<i class="dot"></i>' : ''}</div>`;
+  }
+  document.getElementById('sb-enemy').innerHTML = h;
+  const mine = new Set(G.my_ships.flat().map(p => p.join()));
+  const taken = new Map(G.taken.map(s => [s[0] + ',' + s[1], s[2]]));
+  h = '';
+  for (let r = 0; r < 10; r++) for (let c = 0; c < 10; c++) {
+    const k = r + ',' + c, s = taken.get(k), cls = ['sc'];
+    if (mine.has(k)) cls.push(s === 'h' ? 'hit' : 'ship');
+    h += `<div class="${cls.join(' ')}">${s === 'h' ? '✕' : s === 'm' ? '<i class="dot"></i>' : ''}</div>`;
+  }
+  document.getElementById('sb-mine').innerHTML = h;
+}
+async function sbShoot(r, c) {
+  if (!G || G.status !== 'active' || G.turn !== G.you) return;
+  try { gSet(await gApi('/game/shoot', 'POST', { game_id: G.game_id, r, c })); } catch (e) { showToast(e.message); }
+}
+
 // ─── СТАТИСТИКА ───────────────────────────────────────────
 async function loadStats() {
   if (!tg?.initData) return;
   try {
     const d = await gApi('/my_stats');
-    document.getElementById('gs-played').textContent = d.games.played;
-    document.getElementById('gs-wins').textContent = d.games.wins;
-    document.getElementById('gs-losses').textContent = d.games.losses;
+    document.getElementById('stats-games').innerHTML = Object.keys(GAME_TITLES).map(k => {
+      const g = d.games[k] || { played: 0, wins: 0, losses: 0 };
+      return `<div class="st-title">${GAME_TITLES[k]}</div><div class="st-grid">
+        <div class="st-item"><div class="st-num">${g.played}</div><div class="st-lbl">Сыграно игр</div></div>
+        <div class="st-item"><div class="st-num" style="color:var(--success)">${g.wins}</div><div class="st-lbl">Побед</div></div>
+        <div class="st-item" style="grid-column:span 2"><div class="st-num" style="color:var(--danger)">${g.losses}</div><div class="st-lbl">Поражений</div></div></div>`;
+    }).join('');
     const box = document.getElementById('stats-bot');
     if (!d.has_sub || !d.stats) {
       box.innerHTML = `<div class="g-card"><div class="g-title">🔒 Нужна подписка</div><div class="g-sub">Статистика бота доступна с активной подпиской.</div></div>`;

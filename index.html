@@ -744,6 +744,41 @@ body { display: flex; flex-direction: column; }
 .sb-pb.off { opacity: .35; }
 .sb-act { display: flex; gap: 8px; margin: 0 14px; }
 .sb-act .g-btn { margin-top: 10px; padding: 11px 0; font-size: 13px; }
+/* счётчик шашек */
+.g-cnt { display: flex; align-items: center; justify-content: center; gap: 7px; margin: 8px 14px 0; font-size: 13px; color: var(--subtext); }
+.g-cnt .cp { width: 16px; height: 16px; border-radius: 50%; flex: none; box-shadow: 0 1px 3px rgba(0,0,0,.5), inset 0 0 0 2px rgba(0,0,0,.18); }
+.g-cnt .cp.w { background: radial-gradient(circle at 35% 30%, #fff, #d9d9ee); }
+.g-cnt .cp.b { background: radial-gradient(circle at 35% 30%, #5a5a6e, #17172a); border: 1px solid #3a3a55; }
+.g-cnt b { color: var(--text); font-size: 15px; font-variant-numeric: tabular-nums; }
+.g-cnt .k { opacity: .85; }
+/* оставшиеся корабли соперника */
+.sb-left { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin: 6px 14px 0; }
+.sb-sh { display: flex; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 10px; background: var(--card2); border: 1px solid var(--border); font-size: 12px; font-weight: 800; }
+.sb-sh .bl { display: flex; gap: 2px; }
+.sb-sh .bl i { width: 9px; height: 9px; border-radius: 2px; background: #7f93bd; display: block; }
+.sb-sh.dead { opacity: .4; }
+.sb-sh.dead .bl i { background: #ef4444; }
+.sb-sh.dead b { text-decoration: line-through; }
+.sb-rem { color: var(--text); font-weight: 800; }
+/* ожидание второго игрока (шашки) */
+.gw { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 16px 0 10px; }
+.gw-side { display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 12px; color: var(--subtext); }
+.gw .pc { width: 58px; height: 58px; animation: gwBob 1.6s ease-in-out infinite; }
+.gw-ghost { width: 58px; height: 58px; border-radius: 50%; position: relative; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 800; color: var(--accent); }
+.gw-ghost::before { content: ''; position: absolute; inset: 0; border-radius: 50%; border: 2px dashed var(--accent); animation: gwSpin 4s linear infinite; }
+.gw-ghost::after { content: ''; position: absolute; inset: -6px; border-radius: 50%; border: 2px solid var(--accent); opacity: 0; animation: gwPing 1.8s ease-out infinite; }
+.gw-clock { font-size: 46px; line-height: 1; width: 54px; text-align: center; }
+.gw-dots { display: flex; gap: 6px; }
+.gw-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); display: block; animation: gwDot 1.2s ease-in-out infinite; }
+.gw-dots i:nth-child(2) { animation-delay: .2s; } .gw-dots i:nth-child(3) { animation-delay: .4s; }
+.gw-ell i { font-style: normal; animation: gwDot 1.2s ease-in-out infinite; display: inline-block; }
+.gw-ell i:nth-child(2) { animation-delay: .2s; } .gw-ell i:nth-child(3) { animation-delay: .4s; }
+@keyframes gwBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+@keyframes gwSpin { to { transform: rotate(360deg); } }
+@keyframes gwPing { 0% { transform: scale(.85); opacity: .7; } 100% { transform: scale(1.35); opacity: 0; } }
+@keyframes gwDot { 0%, 100% { opacity: .25; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.15); } }
+/* кнопка звука в игре */
+.snd-btn { position: absolute; top: 8px; left: 12px; z-index: 5; width: 30px; height: 30px; border-radius: 10px; border: 1px solid var(--border); background: var(--card2); color: var(--text); font-size: 15px; line-height: 1; cursor: pointer; display: none; align-items: center; justify-content: center; padding: 0; }
 </style>
 </head>
 <body>
@@ -965,6 +1000,12 @@ body { display: flex; flex-direction: column; }
     <div class="settings-title">Настройки</div>
     <div class="settings-section">
       <div class="settings-card">
+        <div class="settings-row" onclick="sndToggle()">
+          <div class="settings-row-icon" style="background:rgba(6,182,212,0.2)">🔊</div>
+          <div class="settings-row-label">Звуки в играх</div>
+          <div class="settings-row-value" id="snd-set-val">Вкл</div>
+          <div class="settings-row-arrow">›</div>
+        </div>
         <div class="settings-row" onclick="showToast('Выбор языка — в боте')">
           <div class="settings-row-icon" style="background:rgba(91,110,225,0.2)">🌐</div>
           <div class="settings-row-label">Язык</div>
@@ -999,7 +1040,7 @@ body { display: flex; flex-direction: column; }
   </div>
 
   <!-- ИГРА -->
-  <div class="page" id="page-game"><div id="game-root"></div></div>
+  <div class="page" id="page-game"><button class="snd-btn" id="snd-btn" onclick="sndToggle()" aria-label="Звук">🔊</button><div id="game-root"></div></div>
 
   <!-- СТАТИСТИКА -->
   <div class="page" id="page-stats">
@@ -1732,6 +1773,118 @@ function escHtml(s) {
 }
 
 
+// ─── ЗВУКИ (синтез через Web Audio, файлы не нужны) ───────
+const SND = { on: true, ctx: null };
+try { SND.on = localStorage.getItem('logix_sound') !== '0'; } catch (e) {}
+function sndCtx() {
+  if (!SND.ctx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null; try { SND.ctx = new AC(); } catch (e) { return null; } }
+  if (SND.ctx.state === 'suspended') SND.ctx.resume().catch(() => {});
+  return SND.ctx;
+}
+// звук в браузерах можно запускать только после касания — «разбудим» контекст при первом
+['pointerdown', 'touchstart', 'click'].forEach(ev => document.addEventListener(ev, () => { if (SND.on) sndCtx(); }, { passive: true }));
+function sndUi() {
+  const b = document.getElementById('snd-btn'); if (b) b.textContent = SND.on ? '🔊' : '🔇';
+  const v = document.getElementById('snd-set-val'); if (v) v.textContent = SND.on ? 'Вкл' : 'Выкл';
+}
+function sndToggle() {
+  SND.on = !SND.on;
+  try { localStorage.setItem('logix_sound', SND.on ? '1' : '0'); } catch (e) {}
+  sndUi();
+  if (SND.on) SFX.ping();
+  showToast(SND.on ? 'Звуки включены 🔊' : 'Звуки выключены 🔇');
+}
+function tone(f, dur = .12, o = {}) {
+  if (!SND.on) return; const c = sndCtx(); if (!c) return;
+  const t = c.currentTime + (o.at || 0), osc = c.createOscillator(), g = c.createGain();
+  osc.type = o.type || 'sine'; osc.frequency.setValueAtTime(f, t);
+  if (o.slide) osc.frequency.exponentialRampToValueAtTime(Math.max(20, f + o.slide), t + dur);
+  g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(o.vol || .2, t + .006); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  osc.connect(g); g.connect(c.destination); osc.start(t); osc.stop(t + dur + .03);
+}
+function noiseHit(dur = .15, o = {}) {
+  if (!SND.on) return; const c = sndCtx(); if (!c) return;
+  const n = Math.floor(c.sampleRate * dur), buf = c.createBuffer(1, n, c.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+  const src = c.createBufferSource(); src.buffer = buf;
+  const flt = c.createBiquadFilter(); flt.type = o.type || 'bandpass'; flt.Q.value = o.q || 1;
+  const t = c.currentTime + (o.at || 0);
+  flt.frequency.setValueAtTime(o.f || 1500, t);
+  if (o.fEnd) flt.frequency.exponentialRampToValueAtTime(o.fEnd, t + dur);
+  const g = c.createGain(); g.gain.setValueAtTime(o.vol || .2, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  src.connect(flt); flt.connect(g); g.connect(c.destination); src.start(t);
+}
+const SFX = {
+  move()    { noiseHit(.05, { f: 2200, q: 2, vol: .3 }); tone(230, .08, { type: 'triangle', vol: .28, slide: -90 }); },
+  capture() { this.move(); noiseHit(.06, { f: 1800, q: 2, vol: .3, at: .09 }); tone(170, .12, { type: 'triangle', vol: .3, at: .09, slide: -80 }); },
+  king()    { this.move(); [523, 659, 784, 1047].forEach((f, i) => tone(f, .16, { type: 'triangle', vol: .17, at: .1 + i * .08 })); },
+  ping()    { tone(880, .1, { vol: .13 }); tone(1175, .14, { vol: .13, at: .09 }); },
+  start()   { tone(440, .12, { type: 'triangle', vol: .2 }); tone(660, .18, { type: 'triangle', vol: .2, at: .11 }); },
+  offer()   { tone(660, .15, { vol: .18 }); tone(523, .25, { vol: .18, at: .16 }); },
+  decline() { tone(200, .22, { type: 'sawtooth', vol: .12, slide: -60 }); },
+  miss()    { noiseHit(.35, { f: 1400, fEnd: 350, q: .8, vol: .28 }); tone(420, .12, { vol: .08, slide: -200, at: .02 }); },
+  hit()     { noiseHit(.45, { type: 'lowpass', f: 900, fEnd: 120, vol: .5 }); tone(95, .35, { type: 'sine', vol: .45, slide: -60 }); },
+  sunk()    { this.hit(); noiseHit(.6, { type: 'lowpass', f: 600, fEnd: 90, vol: .4, at: .25 }); [520, 440, 370, 300].forEach((f, i) => tone(f, .16, { type: 'triangle', vol: .13, at: .3 + i * .12 })); },
+  place(x)  { tone(x ? 560 : 420, .1, { type: 'triangle', vol: .25, slide: -80 }); },
+  click()   { noiseHit(.04, { f: 2800, q: 3, vol: .3 }); tone(300, .06, { type: 'square', vol: .1 }); },
+  shuffle() { for (let i = 0; i < 4; i++) noiseHit(.05, { f: 1800 + i * 300, q: 2, vol: .2, at: i * .06 }); },
+  win()     { [523, 659, 784, 1047].forEach((f, i) => tone(f, .24, { type: 'triangle', vol: .22, at: i * .13 })); tone(1319, .5, { type: 'triangle', vol: .2, at: .55 }); },
+  lose()    { [392, 349, 311, 262].forEach((f, i) => tone(f, .3, { type: 'triangle', vol: .2, at: i * .18 })); },
+  draw()    { tone(440, .25, { type: 'triangle', vol: .2 }); tone(440, .35, { type: 'triangle', vol: .2, at: .3 }); },
+};
+sndUi();
+
+function sbCountMySunk(v) {
+  const hit = new Set((v.taken || []).filter(s => s[2] === 'h').map(s => s[0] + ',' + s[1]));
+  return (v.my_ships || []).filter(sh => sh.every(c => hit.has(c[0] + ',' + c[1]))).length;
+}
+
+// реакция на изменение состояния: звуки + уведомление об отказе от ничьей
+function gReact(p, v) {
+  if (!p || p.game_id !== v.game_id) return;
+  const gt = v.game_type || 'checkers';
+  if (p.status !== 'finished' && v.status === 'finished') {
+    const end = () => { const d = String(v.end_reason || '').startsWith('draw'); (d ? SFX.draw : v.winner === 'you' ? SFX.win : SFX.lose).call(SFX); };
+    if (gt === 'seabattle') { SFX.sunk(); setTimeout(end, 750); } else end();
+    return;
+  }
+  if (p.status === 'invite' && (v.status === 'active' || v.status === 'placing')) { SFX.start(); return; }
+  if (v.rev === p.rev) return;
+  const myTurnNow = v.status === 'active' && v.turn === v.you && p.turn !== v.you;
+  const ping = () => { if (myTurnNow) setTimeout(() => SFX.ping(), 260); };
+  if (gt === 'checkers') {
+    if (p.draw_offer === 'you' && !v.draw_offer && v.draw_cd > 0 && v.status === 'active') {
+      showToast('Соперник отказался от ничьей. Новое предложение — через минуту');
+      SFX.decline(); return;
+    }
+    if (p.draw_offer !== 'opp' && v.draw_offer === 'opp') { SFX.offer(); return; }
+    if (v.last_move && JSON.stringify(v.last_move) !== JSON.stringify(p.last_move)) {
+      const a = gCkCount(p.board), b = gCkCount(v.board);
+      if (b.wk + b.bk > a.wk + a.bk) SFX.king();
+      else if (b.w + b.b < a.w + a.b) SFX.capture();
+      else SFX.move();
+      ping();
+    }
+  } else if (gt === 'seabattle') {
+    if (v.shots.length > p.shots.length) {
+      const last = v.shots[v.shots.length - 1];
+      if (v.sunk.length > p.sunk.length) SFX.sunk(); else if (last[2] === 'h') SFX.hit(); else SFX.miss();
+    } else if (v.taken.length > p.taken.length) {
+      const last = v.taken[v.taken.length - 1];
+      if (sbCountMySunk(v) > sbCountMySunk(p)) SFX.sunk(); else if (last[2] === 'h') SFX.hit(); else SFX.miss();
+      if (last[2] === 'h') { try { tg?.HapticFeedback?.notificationOccurred('warning'); } catch (e) {} }
+      ping();
+    }
+  } else if (gt === 'tictactoe') {
+    const i = v.cells.findIndex((x, k) => x !== p.cells[k]);
+    if (i >= 0) { SFX.place(v.cells[i] === 1); ping(); }
+  } else if (gt === 'domino') {
+    if (v.chain.length > p.chain.length) { SFX.click(); ping(); }
+    else if (v.stock_count < p.stock_count || v.hand.length > p.hand.length) SFX.shuffle();
+    else if (myTurnNow) SFX.ping();
+  }
+}
+
 // ─── ИГРА «ШАШКИ» ─────────────────────────────────────────
 const CLOCKS = ['🕐','🕑','🕒','🕓','🕔','🕕','🕖','🕗','🕘','🕙','🕚','🕛'];   // запасной вариант
 function gClockSvg() {
@@ -1754,13 +1907,17 @@ async function gApi(path, method = 'GET', body = null) {
   return data;
 }
 
-function gStop() { clearInterval(gPoll); clearInterval(gClock); clearInterval(gTimerI); gPoll = gClock = gTimerI = null; }
+let gDrawI = null;
+function gStop() { clearInterval(gPoll); clearInterval(gClock); clearInterval(gTimerI); clearInterval(gDrawI); gPoll = gClock = gTimerI = gDrawI = null; }
 
 function gSet(view) {
+  const prev = G;
   const changed = !G || G.game_id !== view.game_id || G.rev !== view.rev || G.status !== view.status;
   if (G && G.game_id === view.game_id && G.rev !== view.rev) { gPath = []; DM.sel = null; }
   gAnimMove = (G && G.game_id === view.game_id && view.rev > G.rev && view.game_type !== 'seabattle' && view.last_move) ? view.last_move : null;
+  view._cdEnd = view.draw_cd > 0 ? Date.now() + view.draw_cd * 1000 : 0;   // когда снова можно предложить ничью
   G = view;
+  try { gReact(prev, view); } catch (e) { console.error(e); }
   if (changed) gRender();
   gStartPoll();
 }
@@ -1813,14 +1970,31 @@ function gIdle() {
 
 function gRender() {
   const root = document.getElementById('game-root');
-  clearInterval(gClock); gClock = null; clearInterval(gTimerI); gTimerI = null;
+  clearInterval(gClock); gClock = null; clearInterval(gTimerI); gTimerI = null; clearInterval(gDrawI); gDrawI = null;
+  const sb = document.getElementById('snd-btn'); if (sb) sb.style.display = 'none';
   if (!G) return gIdle();
   const opp = escHtml(G.opp_label);
   if (G.status === 'invite') {
     if (G.you === 1) {
-      root.innerHTML = `<div class="g-card">${gClockSvg()}
-        <div class="g-title">Ожидание второго игрока</div><div class="g-sub">Приглашён: ${opp}</div>
+      const wait = (G.game_type || 'checkers') === 'checkers'
+        ? `<div class="gw"><div class="gw-side"><div class="pc ${G.you === 1 ? 'w' : 'b'}"></div>Вы</div>
+             <div class="gw-clock" id="gw-clock">🕐</div>
+             <div class="gw-side"><div class="gw-ghost">?</div>${opp}</div></div>`
+        : gClockSvg();
+      root.innerHTML = `<div class="g-card">${wait}
+        <div class="g-title">Ожидание второго игрока<span class="gw-ell"><i>.</i><i>.</i><i>.</i></span></div><div class="g-sub">Приглашён: ${opp}</div>
         <button class="g-btn red" onclick="gCancel()">Отменить приглашение❌</button></div>`;
+      // часы-эмодзи 🕐…🕛 по кругу: смена кадра каждые 150 мс — оборот за 1,8 с
+      const gwc = document.getElementById('gw-clock');
+      if (gwc) {
+        gClockI = 0;
+        gClock = setInterval(() => {
+          const el = document.getElementById('gw-clock');
+          if (!el) { clearInterval(gClock); gClock = null; return; }
+          gClockI = (gClockI + 1) % CLOCKS.length;
+          el.textContent = CLOCKS[gClockI];
+        }, 150);
+      }
     } else {
       root.innerHTML = `<div class="g-card"><div class="g-clock">🎮</div><div class="g-title">Приглашение в ${gTitle()}</div>
         <div class="g-sub">От: ${opp}</div><button class="g-btn" onclick="gJoin()">Принять</button></div>`;
@@ -1845,10 +2019,29 @@ function gRender() {
     const mine = G.turn === G.you;
     head = `<div class="g-bar"><span>♟️ ${opp}</span><span class="g-turn ${mine ? 'me' : ''}">${mine ? 'Ваш ход' : 'Ход соперника'}</span></div>`;
   }
-  root.innerHTML = head + '<div class="board" id="board"></div>' +
+  const cn = gCkCounters();
+  root.innerHTML = head + cn.opp + '<div class="board" id="board"></div>' + cn.me +
     gCheckersFooter();
   gTimerMount(root);
   gDrawBoard();
+  gDrawTick();
+}
+
+function gCkCount(board) {
+  const r = { w: 0, b: 0, wk: 0, bk: 0 };
+  for (const row of board) for (const p of row) {
+    if (p > 0) { r.w++; if (p === 2) r.wk++; } else if (p < 0) { r.b++; if (p === -2) r.bk++; }
+  }
+  return r;
+}
+function gPlural(n, f) { const a = Math.abs(n) % 100, d = a % 10; return (a > 10 && a < 20) ? f[2] : d === 1 ? f[0] : (d >= 2 && d <= 4) ? f[1] : f[2]; }
+function gCkCounters() {
+  const c = gCkCount(G.board), meW = G.you === 1;
+  const mk = (who, n, kings, cls) => `<div class="g-cnt"><span>${who}</span><i class="cp ${cls}"></i><b>${n}</b> ${gPlural(n, ['шашка', 'шашки', 'шашек'])}${kings ? ` <span class="k">· 👑 ${kings}</span>` : ''}</div>`;
+  return {
+    opp: mk('Соперник', meW ? c.b : c.w, meW ? c.bk : c.wk, meW ? 'b' : 'w'),
+    me:  mk('Вы', meW ? c.w : c.b, meW ? c.wk : c.bk, meW ? 'w' : 'b'),
+  };
 }
 
 function gCheckersFooter() {
@@ -1857,8 +2050,25 @@ function gCheckersFooter() {
   if (G.draw_offer === 'opp') f += `<div class="g-card" style="margin:0 0 4px"><div class="g-title">Соперник предлагает ничью🤝</div>
     <div style="display:flex;gap:8px"><button class="g-btn" onclick="gDrawAnswer(true)">Принять</button><button class="g-btn ghost" onclick="gDrawAnswer(false)">Отклонить</button></div></div>`;
   else if (G.draw_offer === 'you') f += `<button class="g-btn ghost" style="margin-top:0" disabled>Ничья предложена, ждём ответ🤝</button>`;
-  else f += `<button class="g-btn ghost" style="margin-top:0" onclick="gDrawOffer()">Предложить ничью🤝</button>`;
+  else f += gDrawBtnHtml();
   return f + `<button class="g-btn ghost" onclick="gResign()">Сдаться</button></div>`;
+}
+function gDrawBtnHtml() {
+  const left = G && G._cdEnd ? Math.ceil((G._cdEnd - Date.now()) / 1000) : 0;
+  if (left > 0) return `<button class="g-btn ghost" id="g-draw-btn" style="margin-top:0;opacity:.7" disabled>⏳ Ничью можно предложить через <span id="gdcd">${gFmtDur(left * 1000)}</span></button>`;
+  return `<button class="g-btn ghost" id="g-draw-btn" style="margin-top:0" onclick="gDrawOffer()">Предложить ничью🤝</button>`;
+}
+function gDrawTick() {
+  clearInterval(gDrawI); gDrawI = null;
+  if (!G || !G._cdEnd || !document.getElementById('g-draw-btn')) return;
+  const upd = () => {
+    const b = document.getElementById('g-draw-btn');
+    if (!b || !G) { clearInterval(gDrawI); gDrawI = null; return; }
+    const left = Math.ceil((G._cdEnd - Date.now()) / 1000);
+    if (left <= 0) { clearInterval(gDrawI); gDrawI = null; G._cdEnd = 0; G.draw_cd = 0; b.outerHTML = gDrawBtnHtml(); return; }
+    const t = document.getElementById('gdcd'); if (t) t.textContent = gFmtDur(left * 1000);
+  };
+  upd(); gDrawI = setInterval(upd, 1000);
 }
 async function gDrawOffer() { try { gSet(await gApi('/game/draw_offer', 'POST', { game_id: G.game_id })); } catch (e) { showToast(e.message); } }
 async function gDrawAnswer(accept) { try { gSet(await gApi('/game/draw_answer', 'POST', { game_id: G.game_id, accept })); } catch (e) { showToast(e.message); } }
@@ -1886,6 +2096,7 @@ function gTimerMount(root) {
   if (G.server_now) gSkew = gParseTs(G.server_now) - Date.now();
   const end = G.status === 'finished' && G.ended_at ? gParseTs(G.ended_at) : null;
   const val = () => gFmtDur((end ?? (Date.now() + gSkew)) - start);
+  const sbtn = document.getElementById('snd-btn'); if (sbtn) { sbtn.style.display = 'flex'; sndUi(); }
   root.insertAdjacentHTML('afterbegin', `<div class="g-timer" id="g-timer"><small>⏱ Длительность игры</small>${val()}</div>`);
   const tick = () => { const el = document.getElementById('g-timer'); if (el) el.innerHTML = `<small>⏱ Длительность игры</small>${val()}`; };
   if (!end) gTimerI = setInterval(tick, 1000);
@@ -2086,7 +2297,7 @@ function sbRender(root) {
     const mine = G.turn === G.you;
     head = `<div class="g-bar"><span>⚓ ${opp}</span><span class="g-turn ${mine ? 'me' : ''}">${mine ? 'Ваш ход' : 'Ход соперника'}</span></div>`;
   }
-  root.innerHTML = head + `<div class="sb-lbl">Поле соперника</div><div class="sb" id="sb-enemy"></div>
+  root.innerHTML = head + `<div class="sb-lbl">Поле соперника · осталось кораблей: <span class="sb-rem" id="sb-rem"></span></div><div class="sb-left" id="sb-left"></div><div class="sb" id="sb-enemy"></div>
     <div class="sb-lbl">Ваше поле</div><div class="sb small" id="sb-mine"></div>` +
     (G.status === 'active' ? `<div style="padding:0 14px 14px"><button class="g-btn ghost" onclick="gResign()">Сдаться</button></div>` : '');
   sbDrawBattle();
@@ -2124,6 +2335,13 @@ async function sbReady() {
 }
 
 function sbDrawBattle() {
+  const rem = { ...SB_NEED };
+  G.sunk.forEach(sh => { if (rem[sh.length] !== undefined) rem[sh.length]--; });
+  const total = Object.values(rem).reduce((a, b) => a + b, 0);
+  const elRem = document.getElementById('sb-rem'); if (elRem) elRem.textContent = `${total} из 10`;
+  const elLeft = document.getElementById('sb-left');
+  if (elLeft) elLeft.innerHTML = [4, 3, 2, 1].map(sz =>
+    `<div class="sb-sh ${rem[sz] > 0 ? '' : 'dead'}"><span class="bl">${'<i></i>'.repeat(sz)}</span><b>×${rem[sz]}</b></div>`).join('');
   const mineTurn = G.status === 'active' && G.turn === G.you;
   const shot = new Map(G.shots.map(s => [s[0] + ',' + s[1], s[2]]));
   const sunk = new Set(G.sunk.flat().map(p => p.join()));
